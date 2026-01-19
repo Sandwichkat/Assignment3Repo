@@ -1,0 +1,110 @@
+<div class="grid" id="grid">
+  <article class="card">Card A</article>
+  <article class="card">Card B</article>
+  <article class="card">Card C</article>
+  <article class="card">Card D</article>
+</div>
+
+<style>
+    .grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:12px;
+}
+
+.card{
+  background:#fff;
+  border:1px solid #ddd;
+  border-radius:12px;
+  padding:12px;
+  min-height:110px;
+  cursor:pointer;
+  transform-origin: top left; /* important for FLIP scaling */
+}
+
+/* “Last” state: the expanded overlay */
+.card.is-open{
+  position:fixed;
+  inset:24px;
+  z-index:1000;
+  overflow:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+
+/* Optional dimming */
+.grid.has-open .card:not(.is-open){
+  opacity:.25;
+  pointer-events:none;
+}
+
+</style>
+
+<script>
+const grid = document.getElementById('grid');
+let openCard = null;
+
+function flipTo(card, makeOpen) {
+  // FIRST: measure old rect
+  const first = card.getBoundingClientRect(); // First state measurement [page:1]
+
+  // Apply target (“Last”) state
+  if (makeOpen) card.classList.add('is-open');
+  else card.classList.remove('is-open');
+
+  // LAST: measure new rect
+  const last = card.getBoundingClientRect();
+
+  // INVERT: compute deltas (position + scale)
+  const dx = first.left - last.left;
+  const dy = first.top  - last.top;
+  const sx = first.width  / last.width;
+  const sy = first.height / last.height;
+
+  // Jump visually back to “First” using an inverted transform
+  card.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+
+  // PLAY: on next frame, animate transform back to none
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { // double rAF helps ensure paint timing [page:1]
+      card.style.transition = 'transform 300ms ease';
+      card.style.transform = 'none';
+
+      const cleanup = () => {
+        card.style.transition = '';
+        card.removeEventListener('transitionend', cleanup);
+      };
+      card.addEventListener('transitionend', cleanup);
+    });
+  });
+}
+
+grid.addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+
+  const isAlreadyOpen = card === openCard;
+
+  // Close previously open card
+  if (openCard && openCard !== card) {
+    flipTo(openCard, false);
+  }
+
+  // Toggle current card
+  if (isAlreadyOpen) {
+    flipTo(card, false);
+    openCard = null;
+  } else {
+    flipTo(card, true);
+    openCard = card;
+  }
+
+  grid.classList.toggle('has-open', !!openCard);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !openCard) return;
+  flipTo(openCard, false);
+  openCard = null;
+  grid.classList.remove('has-open');
+});
+</script>
